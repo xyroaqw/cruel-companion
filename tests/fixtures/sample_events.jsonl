@@ -1,0 +1,8 @@
+{"type": "identity_hint", "ts": 0.0, "actor_id": "m:1", "display_name": "Tercessuinotlim"}
+{"type": "zone_change", "ts": 1.0, "zone_name": "Tercessuinotlim's Lair"}
+{"type": "vitals", "ts": 2.0, "kind": "monster_spawn", "actors": [{"actor_id": "m:1", "hp": 100, "hp_max": 100}]}
+{"type": "message", "ts": 3.0, "text": "Tercessuinotlim begins channeling incoming fire", "caster_id": "m:1"}
+{"type": "vitals", "ts": 4.0, "actors": [{"actor_id": "m:1", "hp": 40}]}
+{"type": "vitals", "ts": 5.0, "actors": [{"actor_id": "m:1", "hp": 25}]}
+{"type": "vitals", "ts": 6.0, "actors": [{"actor_id": "m:1", "hp": 20}]}
+{"type": "zone_change", "ts": 7.0, "zone_name": "Dage's Chamber"}
