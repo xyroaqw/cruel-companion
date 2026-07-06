@@ -126,7 +126,8 @@ as they arrive. Whatever it prints is exactly what your `Message contains` rules
 
 Everything lives in `config\settings.yaml`:
 
-- **`overlay.labels`** — every static text on the HUD. Rename `Zone` to anything; set
+- **`overlay.labels`** — every static text on the HUD. `zone_prefix` labels the current game
+  *room* (only shown once packet capture knows one; unrelated to boss glow "zones"). Set
   `title: ""` or `zone_prefix: ""` to hide that row completely.
 - **`overlay.theme`** — all colors (panel, accent, alert levels, HP bar) and the font.
 - **`overlay.alert_ttl_seconds`** — how long alerts stay on the card.
