@@ -126,7 +126,7 @@ class Companion:
 
 def _print_banner(rules_path: Path, packs, vision_on: bool) -> None:
     print("=" * 60)
-    print("  Companion — AQW passive overlay")
+    print("  Companion - AQW passive overlay")
     print("=" * 60)
     print(f"  Python {sys.version.split()[0]}")
     print(f"  Rules:    {rules_path}")
@@ -135,11 +135,12 @@ def _print_banner(rules_path: Path, packs, vision_on: bool) -> None:
         print(f"  Bosses:   {names}")
     else:
         print("  Bosses:   none loaded (add packs under config/bosses/)")
-    print(f"  Vision:   {'watching for game window' if vision_on else 'disabled in settings'}")
+    print(f"  Vision:   {'watching for game window (glow zones)' if vision_on else 'disabled in settings'}")
     print()
     print("  Overlay:  transparent HUD (top-left of screen)")
-    print("  Settings: Rule Editor window just opened")
+    print("  Settings: Rule Builder window just opened")
     print()
-    print("  NOTE: packet parser stub is active — packet-based alerts")
-    print("  need Step 0 (capture_spike.py); vision alerts work now.")
+    print("  Packet alerts (boss HP%, names, zones) need Npcap + an")
+    print("  Administrator terminal. Without them, glow-zone alerts")
+    print("  still work. Server messages print here as [msg] ...")
     print("=" * 60)
