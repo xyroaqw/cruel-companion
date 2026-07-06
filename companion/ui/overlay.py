@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 from tkinter import font as tkfont
 
+from companion.protocol.events import MessageEvent
 from companion.rules.engine import FiredAlert, RulesEngine
 from companion.state.game_state import GameState
 from companion.ui.clickthrough_win32 import make_window_clickthrough
@@ -106,7 +107,20 @@ class OverlayHUD:
             self.root.mainloop()
 
     def _poll(self) -> None:
+        # Whatever goes wrong in a single tick (a bad rule, a rendering hiccup), the poll
+        # loop must survive -- a dead loop means a silently frozen HUD mid-fight.
+        try:
+            self._tick()
+        except Exception as exc:
+            print(f"[overlay] tick error (HUD continues): {exc!r}")
+        self.root.after(self._poll_ms, self._poll)
+
+    def _tick(self) -> None:
         for event in self._bridge.drain():
+            # Echo server messages: this console record is how users discover the exact
+            # text their 'Message contains' rules can match.
+            if isinstance(event, MessageEvent):
+                print(f"[msg] {event.text}")
             self._state.apply(event)
 
         for alert in self._engine.evaluate(self._state.snapshot()):
@@ -124,8 +138,6 @@ class OverlayHUD:
         if model != self._last_model:
             self._last_model = model
             self._redraw(model)
-
-        self.root.after(self._poll_ms, self._poll)
 
     def render_alert(self, alert: FiredAlert) -> None:
         self._alerts.append(

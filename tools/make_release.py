@@ -28,17 +28,17 @@ GETTING STARTED
    - Windows SmartScreen may warn on first run (unsigned app): More info -> Run anyway.
 
 ALERT SOURCES
-- Vision (works out of the box): watches the game window for glowing telegraph
-  zones and on-screen warning text, per the boss packs in config\\bosses\\.
-- Packets (optional, for boss HP% rules): install Npcap (https://npcap.com, check
-  "WinPcap API-compatible mode") and run Companion.exe as Administrator.
-  Without it you still get all vision-based alerts.
+- Packets (main source — boss text, HP%, room changes): install Npcap
+  (https://npcap.com, check "WinPcap API-compatible mode") and run Companion.exe
+  as Administrator. Reads only your own AQW traffic.
+- Vision (works without any setup): watches the game window for glowing telegraph
+  zones, per the boss packs in config\\bosses\\.
 
 CUSTOMIZING / ADDING BOSSES
 - Each boss is one file in config\\bosses\\. Copy _TEMPLATE.yaml, follow the
   comments, restart Companion.
-- Colors vary by screen setup: run VisionProbe.exe while in the fight to tune a
-  pack ("VisionProbe.exe --watch" shows live per-cue readings; "--save shot.png"
+- Glow colors vary by screen setup: run VisionProbe.exe while in the fight to tune
+  a pack ("VisionProbe.exe --watch" shows live per-cue readings; "--save shot.png"
   saves a screenshot to color-pick from).
 - General rules (any boss) live in config\\rules.yaml, editable in-app via the
   Rule Editor window.

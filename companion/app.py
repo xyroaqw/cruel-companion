@@ -23,7 +23,6 @@ from companion.ui.queue_bridge import EventBridge
 from companion.ui.settings_window import SettingsWindow
 from companion.ui.sounds import SoundPlayer
 from companion.ui.theme import Theme
-from companion.vision.ocr import OcrRegion
 from companion.vision.worker import VisionWorker
 
 
@@ -40,9 +39,15 @@ class Companion:
         self.state = GameState(identity=self.identity)
 
         bosses_dir = project_root / settings.get("bosses_dir", "config/bosses")
-        self.packs = load_boss_packs(bosses_dir)
+        # strict=False: a broken boss pack is skipped with a console message, never fatal.
+        self.packs = load_boss_packs(bosses_dir, strict=False)
         pack_triggers = [t for pack in self.packs for t in pack.triggers]
-        self.engine = RulesEngine(load_rules(rules_path), pack_triggers=pack_triggers)
+        try:
+            base_rules = load_rules(rules_path)
+        except Exception as exc:
+            print(f"[rules] rules.yaml failed to load, starting with none: {exc}")
+            base_rules = []
+        self.engine = RulesEngine(base_rules, pack_triggers=pack_triggers)
 
         capture_cfg = settings["capture"]
         self.sniffer = PacketSniffer(
@@ -87,18 +92,6 @@ class Companion:
             return None
         cue_profiles = [cue for pack in self.packs for cue in pack.cues]
 
-        ocr_cfg = vision_cfg.get("ocr", {})
-        ocr_regions = [
-            OcrRegion(
-                name=raw["name"],
-                left=float(raw["left"]),
-                top=float(raw["top"]),
-                right=float(raw["right"]),
-                bottom=float(raw["bottom"]),
-            )
-            for raw in ocr_cfg.get("regions", [])
-        ]
-
         return VisionWorker(
             bridge=self.bridge,
             profiles=cue_profiles,
@@ -106,9 +99,6 @@ class Companion:
                 "window_title_contains", ["AdventureQuest Worlds", "Artix Game Launcher"]
             ),
             fps=float(vision_cfg.get("fps", 5)),
-            ocr_enabled=ocr_cfg.get("enabled", True),
-            ocr_interval_ms=int(ocr_cfg.get("interval_ms", 600)),
-            ocr_regions=ocr_regions,
         )
 
     def _on_segment(self, seg: RawSegment) -> None:

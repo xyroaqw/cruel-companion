@@ -1,0 +1,49 @@
+# Verified 2026-07-06: the official Artix Game Launcher connects on 5588. (A capture of the
+# third-party Grimoire client showed 5590, kept here as a fallback.) The list is a safety net;
+# the sniffer watches all listed ports.
+capture:
+  ports: [5588, 5590, 5594]
+  interface: null   # null = let scapy pick the default route interface
+
+overlay:
+  x: 40
+  y: 40
+  poll_ms: 75
+  max_alert_feed: 6
+  alert_ttl_seconds: 8   # alerts disappear from the HUD this many seconds after firing
+
+  # Every piece of static HUD text. Set title or zone_prefix to "" to hide that row.
+  labels:
+    title: "Ultras Companion"
+    zone_prefix: "Zone"
+    zone_unknown: "—"
+    hp_unknown: "?"
+
+  # HUD + Rule Builder colors (any CSS-style hex). Delete a line to use the default.
+  theme:
+    panel_bg: "#15161c"
+    border: "#2d2f3a"
+    accent: "#7c5cff"
+    text: "#e8e8f0"
+    muted: "#9aa0b0"
+    info: "#8ab4f8"
+    warning: "#fbbc04"
+    critical: "#f28b82"
+    font_family: "Segoe UI"
+
+identity:
+  cache_path: "data/identities.json"
+
+# Per-boss cue + rule bundles; one YAML per boss. See config/bosses/_TEMPLATE.yaml.
+bosses_dir: "config/bosses"
+
+# Vision layer: glow/telegraph zone detection ONLY (client-rendered effects that packets
+# can't see). All text/HP/zone-change data comes from packet capture.
+vision:
+  enabled: true
+  # First visible window whose title contains any of these (case-insensitive) is captured.
+  window_title_contains: ["AdventureQuest Worlds", "Artix Game Launcher"]
+  fps: 5   # zone-detection captures per second
+
+sounds:
+  enabled: true   # beep patterns per alert level (info/warning/critical)

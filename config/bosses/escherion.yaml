@@ -1,0 +1,28 @@
+# Escherion (/join escherion) — packet-native pack, verified against a live capture
+# 2026-07-06 (Grimoire client, port 5590).
+#
+# The mechanic: Escherion is immune while the "Staff of Inversion" lives. The on-screen
+# "The staff is down..." banner is drawn CLIENT-SIDE and is NOT in the packet stream — so
+# this pack keys off the packet-native truth instead: the Staff monster's HP hitting 0.
+# Monster names come from the room-load (moveToArea) frame; HP% is exact from packets.
+
+boss: Escherion
+
+rules:
+  - id: staff_down
+    when:
+      boss_name: "Staff of Inversion"   # resolved from the room roster
+      hp_pct_below: 1                    # i.e. dead — starts at 1000 HP, only 0 when killed
+    then:
+      alert: "Staff down — burn Escherion NOW!"
+      level: critical
+    fire_once_per_threshold_crossing: true   # re-arms when the Staff respawns
+
+  - id: escherion_low
+    when:
+      boss_name: "Escherion"
+      hp_pct_below: 20
+    then:
+      alert: "Escherion low — finish it!"
+      level: warning
+    fire_once_per_threshold_crossing: true

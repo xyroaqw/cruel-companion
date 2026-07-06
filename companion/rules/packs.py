@@ -27,7 +27,10 @@ class BossPack:
     triggers: list[Trigger]
 
 
-def load_boss_packs(bosses_dir: Path) -> list[BossPack]:
+def load_boss_packs(bosses_dir: Path, strict: bool = True) -> list[BossPack]:
+    """strict=True (tests, tooling): first bad pack raises. strict=False (the running app):
+    a broken pack is skipped with a console message naming the file and the problem, so one
+    user's YAML typo can't take down every other boss's alerts."""
     if not bosses_dir.is_dir():
         return []
 
@@ -36,11 +39,17 @@ def load_boss_packs(bosses_dir: Path) -> list[BossPack]:
     for path in sorted(bosses_dir.glob("*.yaml")):
         if path.name.startswith("_"):
             continue
-        pack = _load_pack(path)
-        for trigger in pack.triggers:
-            if trigger.id in seen_rule_ids:
-                raise ValueError(f"duplicate rule id '{trigger.id}' across boss packs")
-            seen_rule_ids.add(trigger.id)
+        try:
+            pack = _load_pack(path)
+            for trigger in pack.triggers:
+                if trigger.id in seen_rule_ids:
+                    raise ValueError(f"duplicate rule id '{trigger.id}' across boss packs")
+        except (ValueError, yaml.YAMLError) as exc:
+            if strict:
+                raise
+            print(f"[packs] SKIPPED {path.name}: {exc}")
+            continue
+        seen_rule_ids.update(t.id for t in pack.triggers)
         packs.append(pack)
     return packs
 
@@ -50,12 +59,21 @@ def _load_pack(path: Path) -> BossPack:
     namespace = path.stem
     context = f"bosses/{path.name}"
 
+    valid_cue_keys = {"id", "hsv_lower", "hsv_upper", "min_coverage_pct", "region"}
     cues = []
     cue_ids: set[str] = set()
     for i, raw in enumerate(data.get("cues", [])):
+        if not isinstance(raw, dict):
+            raise ValueError(f"{context} cue #{i} must be a mapping")
         cue_id = raw.get("id")
         if not cue_id:
             raise ValueError(f"{context} cue #{i} is missing required field 'id'")
+        unknown = set(raw) - valid_cue_keys
+        if unknown:
+            raise ValueError(
+                f"{context} cue '{cue_id}': unknown field(s) {sorted(unknown)}; "
+                f"valid: {sorted(valid_cue_keys)}"
+            )
         if cue_id in cue_ids:
             raise ValueError(f"{context} has duplicate cue id '{cue_id}'")
         cue_ids.add(cue_id)

@@ -67,8 +67,15 @@ class RulesEngine:
             return False
 
         if cond.message_contains is not None:
-            needle = cond.message_contains.lower()
-            if not any(needle in msg.lower() for msg in state.recent_messages):
+            fragments = (
+                cond.message_contains
+                if isinstance(cond.message_contains, tuple)
+                else (cond.message_contains,)
+            )
+            needles = [f.lower() for f in fragments]
+            if not any(
+                needle in msg.lower() for msg in state.recent_messages for needle in needles
+            ):
                 return False
 
         if cond.boss_name is not None or cond.hp_pct_below is not None:

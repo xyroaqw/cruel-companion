@@ -1,6 +1,6 @@
 [project]
 name = "companion"
-version = "0.2.0"
+version = "0.4.0"
 description = "Passive AQW combat-alert overlay (reads your own network traffic only; no packet injection, no input automation)"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,7 +9,6 @@ dependencies = [
     "mss>=9.0",
     "numpy>=1.26",
     "opencv-python-headless>=4.9",
-    "rapidocr-onnxruntime>=1.3",
 ]
 
 [project.optional-dependencies]

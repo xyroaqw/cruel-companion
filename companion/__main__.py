@@ -11,9 +11,23 @@ else:
     ROOT = Path(__file__).resolve().parent.parent
 
 
+def _make_console_utf8_safe() -> None:
+    # Alert text is user-authored and the HUD renders full Unicode, but the Windows console
+    # defaults to cp1252 -- printing an em-dash or non-Latin1 glyph there would raise
+    # UnicodeEncodeError. Reconfigure stdio to UTF-8 and never let output encoding crash.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main() -> None:
     from companion.vision.window import ensure_dpi_aware
 
+    _make_console_utf8_safe()
     ensure_dpi_aware()
     app = Companion(
         settings_path=ROOT / "config" / "settings.yaml",

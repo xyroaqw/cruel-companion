@@ -26,7 +26,7 @@ FIELD_DEFS = [
     ("boss_name",        "Boss name",             "packet data — exact monster name"),
     ("zone_equals",      "Zone equals",           "packet data — exact room name"),
     ("hp_pct_below",     "HP % below",            "packet data — e.g. 30"),
-    ("message_contains", "Message contains",      "server text or on-screen OCR text"),
+    ("message_contains", "Message contains",      "boss/server text; use | for any-of"),
     ("visual_cue",       "Visual cue",            "pack:cue, e.g. ultra_darkon:red_glow"),
     ("alert",            "Alert text *",          "what the HUD shows"),
     ("cooldown_seconds", "Cooldown (s)",          "min seconds between repeats"),
@@ -300,7 +300,8 @@ class SettingsWindow:
         _set("boss_name", t.when.boss_name)
         _set("zone_equals", t.when.zone_equals)
         _set("hp_pct_below", t.when.hp_pct_below)
-        _set("message_contains", t.when.message_contains)
+        mc = t.when.message_contains
+        _set("message_contains", " | ".join(mc) if isinstance(mc, tuple) else mc)
         _set("visual_cue", t.when.visual_cue)
         _set("alert", t.then.alert)
         _set("cooldown_seconds", t.cooldown_seconds if t.cooldown_seconds else "")
@@ -368,13 +369,19 @@ class SettingsWindow:
                 )
                 return
 
+        mc_raw = self._entries["message_contains"].get().strip()
+        message_contains: str | tuple[str, ...] | None = None
+        if mc_raw:
+            fragments = tuple(p.strip() for p in mc_raw.split("|") if p.strip())
+            message_contains = fragments if len(fragments) > 1 else fragments[0]
+
         trigger = Trigger(
             id=rule_id,
             when=Condition(
                 boss_name=self._entries["boss_name"].get().strip() or None,
                 zone_equals=self._entries["zone_equals"].get().strip() or None,
                 hp_pct_below=hp_pct_below,
-                message_contains=self._entries["message_contains"].get().strip() or None,
+                message_contains=message_contains,
                 visual_cue=self._entries["visual_cue"].get().strip() or None,
             ),
             then=Action(alert=alert_text, level=AlertLevel(self._level_var.get())),

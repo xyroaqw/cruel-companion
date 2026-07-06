@@ -1,0 +1,57 @@
+# Boss pack template -- copy to a new file (e.g. ultra_speaker.yaml) and edit.
+# Files starting with "_" are ignored by the loader.
+#
+# Cue and rule ids are automatically namespaced by filename: a cue "red_telegraph" in
+# ultra_speaker.yaml becomes "ultra_speaker:red_telegraph" everywhere outside this file.
+# Rules INSIDE this file may reference this file's cues by bare name.
+#
+# CALIBRATION WORKFLOW (do this once per boss, while in the fight or watching a recording):
+#   1. python tools/vision_probe.py --save shot.png     -> screenshot of the game window
+#   2. Open shot.png, eyedropper the glow color, convert to OpenCV HSV
+#      (H = hue/2 so 0-179, S and V are 0-255).
+#   3. Set hsv_lower/hsv_upper around it (give H +/-8, S/V generous lower bounds).
+#   4. python tools/vision_probe.py --watch              -> live coverage% per cue;
+#      set min_coverage_pct above the idle noise floor and below the telegraph's reading.
+
+boss: My Ultra Boss          # display name (banner only)
+
+cues:
+  - id: red_telegraph        # required, unique within this file
+    # OpenCV HSV: H 0-179, S 0-255, V 0-255.
+    # If lower H > upper H the range wraps around red (e.g. 170..10).
+    hsv_lower: [170, 130, 160]
+    hsv_upper: [10, 255, 255]
+    min_coverage_pct: 1.5    # % of the region that must match before the cue is "on"
+    # Optional sub-region of the window to watch, [left, top, right, bottom] fractions.
+    # Omit to watch the whole window. Watching only the arena floor cuts false positives
+    # from UI art and chat.
+    region: [0.05, 0.30, 0.95, 0.95]
+
+rules:
+  # Same shape as config/rules.yaml, plus `visual_cue`. All `when` fields AND together.
+  - id: dodge_red
+    when:
+      visual_cue: red_telegraph
+    then:
+      alert: "MOVE — red zone!"
+      level: critical
+    fire_once_per_threshold_crossing: true   # re-arms when the glow disappears
+
+  - id: burn_phase
+    when:
+      boss_name: "My Ultra Boss"     # packet-layer data; needs capture running
+      hp_pct_below: 25
+    then:
+      alert: "Burn phase — full damage!"
+      level: warning
+    fire_once_per_threshold_crossing: true
+
+  - id: taunt_callout
+    when:
+      # A single fragment, or a list meaning "fires if ANY of these matches":
+      #   message_contains: ["prepares to strike", "readies its blade"]
+      message_contains: "prepares to strike"   # matches server messages (packet layer)
+    then:
+      alert: "Taunt NOW"
+      level: critical
+    cooldown_seconds: 5

@@ -13,9 +13,8 @@ from PyInstaller.utils.hooks import collect_all
 datas = []
 binaries = []
 hiddenimports = []
-# scapy: runtime imports galore. rapidocr_onnxruntime: ships .onnx models + yaml configs as
-# package data that a plain import scan misses.
-for pkg in ("scapy", "rapidocr_onnxruntime"):
+# scapy: runtime imports galore that a plain import scan misses.
+for pkg in ("scapy",):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

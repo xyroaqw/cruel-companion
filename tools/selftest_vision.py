@@ -1,13 +1,13 @@
 """End-to-end vision self-test -- no AQW (and no boss) needed.
 
-Spawns a fake "game window" (a Tk window showing a red telegraph patch and a warning banner
-text), points the REAL pipeline at it -- window finding, screen capture, HSV zone detection,
-OCR, game state, rules engine -- and reports which alerts fired.
+Spawns a fake "game window" (a Tk window showing a red telegraph patch), points the REAL
+pipeline at it -- window finding, screen capture, HSV zone detection, game state, rules
+engine -- and reports whether the glow alert fired.
 
     python tools/selftest_vision.py
 
-Expected result: both checks PASS within ~20 seconds. A window will briefly appear on
-screen; that's the fake game window being captured.
+Expected result: PASS within ~15 seconds. A window will briefly appear on screen; that's
+the fake game window being captured.
 """
 
 import argparse
@@ -21,12 +21,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 WINDOW_TITLE = "Companion Vision Selftest"
-BANNER_TEXT = "COUNTER ATTACK INCOMING"
-TIMEOUT_S = 25.0
+TIMEOUT_S = 20.0
 
 
 def run_banner(duration_s: float) -> None:
-    """The fake game window: dark arena, red telegraph patch, warning text."""
+    """The fake game window: dark arena with a red telegraph patch."""
     import tkinter as tk
 
     root = tk.Tk()
@@ -36,9 +35,6 @@ def run_banner(duration_s: float) -> None:
     canvas = tk.Canvas(root, width=800, height=400, bg="#101018", highlightthickness=0)
     canvas.pack(fill="both", expand=True)
     canvas.create_rectangle(60, 160, 300, 380, fill="#e60000", outline="")
-    canvas.create_text(
-        400, 70, text=BANNER_TEXT, fill="white", font=("Segoe UI", 30, "bold")
-    )
     root.after(int(duration_s * 1000), root.destroy)
     root.mainloop()
 
@@ -50,7 +46,6 @@ def main() -> int:
     from companion.state.game_state import GameState
     from companion.ui.queue_bridge import EventBridge
     from companion.vision.cues import CueProfile
-    from companion.vision.ocr import OcrRegion
     from companion.vision.window import ensure_dpi_aware
     from companion.vision.worker import VisionWorker
 
@@ -70,13 +65,7 @@ def main() -> int:
                 when=Condition(visual_cue="selftest:red_patch"),
                 then=Action(alert="zone detection works", level=AlertLevel.CRITICAL),
                 fire_once_per_threshold_crossing=True,
-            ),
-            Trigger(
-                id="selftest:banner_text_read",
-                when=Condition(message_contains="counter attack"),
-                then=Action(alert="OCR text detection works", level=AlertLevel.WARNING),
-                cooldown_seconds=9999,
-            ),
+            )
         ]
     )
     worker = VisionWorker(
@@ -91,21 +80,18 @@ def main() -> int:
         ],
         title_substrings=[WINDOW_TITLE],
         fps=5,
-        ocr_enabled=True,
-        ocr_interval_ms=500,
-        ocr_regions=[OcrRegion(name="full", left=0.0, top=0.0, right=1.0, bottom=1.0)],
     )
     worker.start()
 
-    fired: set[str] = set()
+    fired = False
     deadline = time.monotonic() + TIMEOUT_S
     try:
-        while time.monotonic() < deadline and len(fired) < 2:
+        while time.monotonic() < deadline and not fired:
             for event in bridge.drain():
                 print(f"  event: {event}")
                 state.apply(event)
             for alert in engine.evaluate(state.snapshot()):
-                fired.add(alert.trigger_id)
+                fired = True
                 print(f"  FIRED [{alert.level.value}] {alert.message}")
             time.sleep(0.2)
     finally:
@@ -113,18 +99,10 @@ def main() -> int:
         banner.terminate()
 
     print()
-    checks = [
-        ("zone detection (red telegraph patch)", "selftest:red_patch_seen"),
-        ("OCR text (warning banner)", "selftest:banner_text_read"),
-    ]
-    all_ok = True
-    for label, trigger_id in checks:
-        ok = trigger_id in fired
-        all_ok &= ok
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
+    print(f"  {'PASS' if fired else 'FAIL'}  zone detection (red telegraph patch)")
     print()
-    print("Self-test PASSED" if all_ok else "Self-test FAILED")
-    return 0 if all_ok else 1
+    print("Self-test PASSED" if fired else "Self-test FAILED")
+    return 0 if fired else 1
 
 
 if __name__ == "__main__":

@@ -18,7 +18,9 @@ class Condition:
     zone_equals: str | None = None
     boss_name: str | None = None
     hp_pct_below: float | None = None
-    message_contains: str | None = None
+    # A single fragment, or a tuple of fragments meaning "any of these matches" (YAML: either
+    # a plain string or a list of strings).
+    message_contains: str | tuple[str, ...] | None = None
     # Matches while a vision-layer color cue is active (see companion/vision). In boss packs,
     # bare cue names are namespaced to "<pack>:<cue>" at load time.
     visual_cue: str | None = None
@@ -39,44 +41,103 @@ class Trigger:
     fire_once_per_threshold_crossing: bool = False
 
 
+VALID_RULE_KEYS = {"id", "when", "then", "cooldown_seconds", "fire_once_per_threshold_crossing"}
+VALID_WHEN_KEYS = {"zone_equals", "boss_name", "hp_pct_below", "message_contains", "visual_cue"}
+VALID_THEN_KEYS = {"alert", "level"}
+
+
+def _require_str(value, field: str, where: str) -> str | None:
+    if value is None or isinstance(value, str):
+        return value
+    raise ValueError(f"{where}: '{field}' must be a single text string, got {type(value).__name__}")
+
+
+def _parse_message_contains(value, where: str) -> str | tuple[str, ...] | None:
+    """Accepts a string OR a list of strings ("any of these matches")."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        if not value or not all(isinstance(item, str) for item in value):
+            raise ValueError(
+                f"{where}: 'message_contains' list must contain only text strings"
+            )
+        return tuple(value)
+    raise ValueError(
+        f"{where}: 'message_contains' must be a text string or a list of strings, "
+        f"got {type(value).__name__}"
+    )
+
+
 def parse_rule_dict(raw: dict, context: str) -> Trigger:
-    """Parses one raw rule mapping into a Trigger. Shared by load_rules (config/rules.yaml)
-    and the boss-pack loader (companion/rules/packs.py). context names the source for error
-    messages, e.g. "rules.yaml entry #2" or "bosses/ultra_darkon.yaml".
+    """Parses one raw rule mapping into a Trigger, validating types and rejecting unknown
+    keys so a typo produces a named error instead of a silently dead (or crashing) rule.
+    Shared by load_rules (config/rules.yaml) and the boss-pack loader
+    (companion/rules/packs.py). context names the source for error messages.
     """
+    if not isinstance(raw, dict):
+        raise ValueError(f"{context}: each rule must be a mapping, got {type(raw).__name__}")
+
     rule_id = raw.get("id")
     if not rule_id:
         raise ValueError(f"{context} is missing required field 'id'")
+    where = f"rule '{rule_id}' ({context})"
+
+    unknown = set(raw) - VALID_RULE_KEYS
+    if unknown:
+        raise ValueError(f"{where}: unknown field(s) {sorted(unknown)}; valid: {sorted(VALID_RULE_KEYS)}")
 
     when_raw = raw.get("when")
-    if not when_raw:
-        raise ValueError(f"rule '{rule_id}' ({context}) is missing required field 'when'")
+    if when_raw is None:
+        raise ValueError(f"{where} is missing required field 'when'")
+    if not isinstance(when_raw, dict) or not when_raw:
+        raise ValueError(f"{where}: 'when' must be a mapping of condition fields")
+    unknown = set(when_raw) - VALID_WHEN_KEYS
+    if unknown:
+        raise ValueError(
+            f"{where}: unknown condition(s) {sorted(unknown)}; valid: {sorted(VALID_WHEN_KEYS)}"
+        )
 
     then_raw = raw.get("then")
-    if not then_raw or not then_raw.get("alert"):
-        raise ValueError(f"rule '{rule_id}' ({context}) is missing required field 'then.alert'")
+    if not isinstance(then_raw, dict) or not then_raw.get("alert"):
+        raise ValueError(f"{where} is missing required field 'then.alert'")
+    unknown = set(then_raw) - VALID_THEN_KEYS
+    if unknown:
+        raise ValueError(f"{where}: unknown 'then' field(s) {sorted(unknown)}; valid: {sorted(VALID_THEN_KEYS)}")
+
+    hp_raw = when_raw.get("hp_pct_below")
+    hp_pct_below = None
+    if hp_raw is not None:
+        try:
+            hp_pct_below = float(hp_raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"{where}: 'hp_pct_below' must be a number, got {hp_raw!r}") from None
 
     condition = Condition(
-        zone_equals=when_raw.get("zone_equals"),
-        boss_name=when_raw.get("boss_name"),
-        hp_pct_below=when_raw.get("hp_pct_below"),
-        message_contains=when_raw.get("message_contains"),
-        visual_cue=when_raw.get("visual_cue"),
+        zone_equals=_require_str(when_raw.get("zone_equals"), "zone_equals", where),
+        boss_name=_require_str(when_raw.get("boss_name"), "boss_name", where),
+        hp_pct_below=hp_pct_below,
+        message_contains=_parse_message_contains(when_raw.get("message_contains"), where),
+        visual_cue=_require_str(when_raw.get("visual_cue"), "visual_cue", where),
     )
 
     try:
         level = AlertLevel(then_raw.get("level", "info"))
     except ValueError as exc:
         valid = ", ".join(level.value for level in AlertLevel)
+        raise ValueError(f"{where} has invalid 'then.level' (must be one of: {valid})") from exc
+
+    try:
+        cooldown = float(raw.get("cooldown_seconds", 0.0))
+    except (TypeError, ValueError):
         raise ValueError(
-            f"rule '{rule_id}' ({context}) has invalid 'then.level' (must be one of: {valid})"
-        ) from exc
+            f"{where}: 'cooldown_seconds' must be a number, got {raw.get('cooldown_seconds')!r}"
+        ) from None
 
     return Trigger(
         id=rule_id,
         when=condition,
         then=Action(alert=then_raw["alert"], level=level),
-        cooldown_seconds=float(raw.get("cooldown_seconds", 0.0)),
+        cooldown_seconds=cooldown,
         fire_once_per_threshold_crossing=bool(
             raw.get("fire_once_per_threshold_crossing", False)
         ),
@@ -114,7 +175,8 @@ def save_rules(triggers: list[Trigger], path: Path) -> None:
         if t.when.hp_pct_below is not None:
             when["hp_pct_below"] = t.when.hp_pct_below
         if t.when.message_contains is not None:
-            when["message_contains"] = t.when.message_contains
+            mc = t.when.message_contains
+            when["message_contains"] = list(mc) if isinstance(mc, tuple) else mc
         if t.when.visual_cue is not None:
             when["visual_cue"] = t.when.visual_cue
 

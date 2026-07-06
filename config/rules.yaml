@@ -1,0 +1,34 @@
+# Each rule's `when` block is AND-combined across whichever fields are set.
+# `id` must be unique -- it's the key used for cooldown/edge-tracking state.
+#
+# Anti-spam: use `fire_once_per_threshold_crossing: true` for conditions that stay true for a
+# while (HP thresholds, being in a zone) so the alert fires once per crossing, not every tick.
+# Use `cooldown_seconds` for conditions that can legitimately repeat (telegraph text).
+#
+# These are placeholder examples -- edit freely once Step 0 confirms real boss names/messages.
+
+rules:
+  - id: example_burn_phase
+    when:
+      boss_name: "Tercessuinotlim"
+      hp_pct_below: 30
+    then:
+      alert: "Burn phase! Use Skill 3 now"
+      level: warning
+    fire_once_per_threshold_crossing: true
+
+  - id: example_telegraph_dodge
+    when:
+      message_contains: "incoming fire"
+    then:
+      alert: "Dodge now!"
+      level: critical
+    cooldown_seconds: 5
+
+  - id: example_entered_boss_room
+    when:
+      zone_equals: "Dage's Chamber"
+    then:
+      alert: "Boss room entered"
+      level: info
+    fire_once_per_threshold_crossing: true
