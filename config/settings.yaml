@@ -13,10 +13,11 @@ overlay:
   alert_ttl_seconds: 8   # alerts disappear from the HUD this many seconds after firing
 
   # Every piece of static HUD text. Set title or zone_prefix to "" to hide that row.
+  # zone_prefix labels the current game ROOM (needs packet capture; hidden until known) --
+  # unrelated to boss "zone" glow mechanics, which come from boss-pack cues.
   labels:
     title: "Ultras Companion"
-    zone_prefix: "Zone"
-    zone_unknown: "—"
+    zone_prefix: "Room"
     hp_unknown: "?"
 
   # HUD + Rule Builder colors (any CSS-style hex). Delete a line to use the default.

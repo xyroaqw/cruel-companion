@@ -161,8 +161,10 @@ class OverlayHUD:
         rows: list[tuple] = []
         if t.title:
             rows.append(("title", t.title))
-        if t.zone_prefix:
-            rows.append(("zone", f"{t.zone_prefix}: {snap.zone or t.zone_unknown}"))
+        # Room row only appears once a room is actually known (needs packet capture) --
+        # a permanent "Room: -" line is just noise for vision-only users.
+        if t.zone_prefix and snap.zone:
+            rows.append(("zone", f"{t.zone_prefix}: {snap.zone}"))
         for actor in snap.monsters():
             rows.append(("monster", actor.display_name, actor.hp_pct))
         for _expires, text, color in self._alerts:

@@ -25,8 +25,9 @@ class Theme:
     font_family: str = "Segoe UI"
     # Labels (empty string hides the row)
     title: str = "Ultras Companion"
-    zone_prefix: str = "Zone"
-    zone_unknown: str = "—"
+    # The current game ROOM (from packets; what zone_equals rules match) -- deliberately not
+    # called "Zone" on screen, since AQW players read "zone" as the glowing boss mechanic.
+    zone_prefix: str = "Room"
     hp_unknown: str = "?"
 
     @classmethod
