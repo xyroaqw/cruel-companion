@@ -1,6 +1,6 @@
 [project]
 name = "companion"
-version = "0.4.0"
+version = "0.5.0"
 description = "Passive AQW combat-alert overlay (reads your own network traffic only; no packet injection, no input automation)"
 requires-python = ">=3.11"
 dependencies = [

@@ -47,3 +47,16 @@ def test_reset_flow_drops_buffer():
     r.feed(KEY, b'{"a":1')
     r.reset_flow(KEY)
     assert r.feed(KEY, b'}\x00') == []
+
+
+def test_feed_all_keeps_non_json_frames():
+    r = FlowReassembler()
+    frames = r.feed_all(KEY, b'%xt%zm%gar%1%2%\x00{"a":1}\x00')
+    assert frames == ["%xt%zm%gar%1%2%", '{"a":1}']
+
+
+def test_feed_all_and_feed_agree_on_json():
+    r1, r2 = FlowReassembler(), FlowReassembler()
+    payload = b'garbage\x00{"a":1}\x00'
+    assert r1.feed(KEY, payload) == ['{"a":1}']
+    assert r2.feed_all(KEY, payload) == ["garbage", '{"a":1}']

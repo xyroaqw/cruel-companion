@@ -10,6 +10,7 @@ from pathlib import Path
 import tkinter as tk
 import yaml
 
+from companion.capture.frame_tap import FrameTap
 from companion.capture.reassembler import FlowReassembler
 from companion.capture.sniffer import PacketSniffer, RawSegment
 from companion.identity.resolver import IdentityResolver
@@ -20,6 +21,7 @@ from companion.rules.schema import load_rules
 from companion.state.game_state import GameState
 from companion.ui.overlay import OverlayHUD
 from companion.ui.queue_bridge import EventBridge
+from companion.ui.inspector import FrameInspector
 from companion.ui.settings_window import SettingsWindow
 from companion.ui.sounds import SoundPlayer
 from companion.ui.theme import Theme
@@ -31,7 +33,9 @@ class Companion:
         settings = yaml.safe_load(settings_path.read_text(encoding="utf-8"))
 
         self._rules_path = rules_path
+        self._project_root = project_root
         self.bridge = EventBridge()
+        self.frame_tap = FrameTap()
         self.reassembler = FlowReassembler()
 
         identity_cache = project_root / settings["identity"]["cache_path"]
@@ -78,11 +82,19 @@ class Companion:
             alert_ttl_seconds=float(overlay_cfg.get("alert_ttl_seconds", 8)),
         )
 
+        self.inspector = FrameInspector(
+            root=self._root,
+            tap=self.frame_tap,
+            save_dir=project_root / "logs",
+            theme=theme,
+        )
+
         self.settings_win = SettingsWindow(
             root=self._root,
             rules_path=rules_path,
             engine=self.engine,
             theme=theme,
+            on_open_inspector=self.inspector.show,
         )
 
         _print_banner(rules_path, self.packs, vision_on=self.vision is not None)
@@ -103,7 +115,11 @@ class Companion:
 
     def _on_segment(self, seg: RawSegment) -> None:
         key = (seg.src_ip, seg.src_port, seg.dst_ip, seg.dst_port)
-        for frame_text in self.reassembler.feed(key, seg.payload):
+        for frame_text in self.reassembler.feed_all(key, seg.payload):
+            # Tap EVERY frame (JSON or not) for the Frame Inspector before interpreting it.
+            self.frame_tap.record(seg.direction, frame_text)
+            if not (frame_text.startswith("{") and frame_text.endswith("}")):
+                continue
             try:
                 raw = json.loads(frame_text)
             except json.JSONDecodeError:

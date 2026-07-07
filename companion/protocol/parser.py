@@ -6,7 +6,10 @@ shape {"t": "xt", "b": {"o": {"cmd": <str>, ...}}}; we dispatch on that inner o.
 
 Verified frame types:
   ct          combat tick -- current vitals for monsters (o.m, keyed by MonMapID) and players
-                        (o.p, keyed by player name). Values: intHP, intMP, intState.
+                        (o.p, keyed by player name). Values: intHP, intMP, intState. Also
+                        carries aura+/aura- entries in o.a, surfaced as MessageEvents
+                        ("aura+ <name> on <target>") so message_contains rules can key off
+                        the server-side aura behind a client-side mechanic banner.
   mtls        monster full stats -- o.id + o.o.intHP is the monster's MAX HP (constant at
                         6000 for Escherion / 1000 for the Staff while ct shows HP draining).
   uotls       player full stats -- o.unm + o.o with intHP/intHPMax/intMP.
@@ -27,6 +30,7 @@ never raise.
 from companion.protocol.events import (
     ActorVitals,
     IdentityHintEvent,
+    MessageEvent,
     NormalizedEvent,
     VitalsEvent,
     ZoneChangeEvent,
@@ -60,6 +64,7 @@ def parse_frame(raw: dict) -> list[NormalizedEvent]:
 
 
 def _parse_combat_tick(o: dict) -> list[NormalizedEvent]:
+    events: list[NormalizedEvent] = []
     actors: list[ActorVitals] = []
 
     monsters = o.get("m")
@@ -74,9 +79,51 @@ def _parse_combat_tick(o: dict) -> list[NormalizedEvent]:
             if isinstance(vitals, dict):
                 actors.append(_vitals(f"p:{name}", vitals))
 
-    if not actors:
-        return []
-    return [VitalsEvent(ts=0.0, actors=actors, kind="combat_tick")]
+    if actors:
+        events.append(VitalsEvent(ts=0.0, actors=actors, kind="combat_tick"))
+
+    events.extend(_parse_aura_entries(o.get("a")))
+    return events
+
+
+def _parse_aura_entries(entries) -> list[MessageEvent]:
+    """ct frames carry aura applications in o.a: {"cmd": "aura+", "tInf": "m:3",
+    "auras": [{"nam": ..., "isNew": bool}]} (and "aura-" removals with a single "aura").
+    Boss mechanics are usually aura-driven -- the flashy on-screen text is client-side
+    decoration for an aura the server DID send. Surfacing auras as messages gives
+    message_contains rules a packet-native hook: match e.g. "aura+ Empowered".
+    Only isNew auras are emitted for aura+ -- refresh ticks (isNew: false) would flood
+    the message buffer.
+    """
+    messages: list[MessageEvent] = []
+    for entry in _as_list(entries):
+        if not isinstance(entry, dict):
+            continue
+        cmd = entry.get("cmd")
+        target = entry.get("tInf", "?")
+        if cmd == "aura+":
+            for aura in _as_list(entry.get("auras")):
+                if isinstance(aura, dict) and aura.get("nam") and aura.get("isNew"):
+                    messages.append(
+                        MessageEvent(
+                            ts=0.0,
+                            text=f"aura+ {aura['nam']} on {target}",
+                            target_id=str(target),
+                            raw_kind="aura",
+                        )
+                    )
+        elif cmd == "aura-":
+            aura = entry.get("aura")
+            if isinstance(aura, dict) and aura.get("nam"):
+                messages.append(
+                    MessageEvent(
+                        ts=0.0,
+                        text=f"aura- {aura['nam']} on {target}",
+                        target_id=str(target),
+                        raw_kind="aura",
+                    )
+                )
+    return messages
 
 
 def _parse_monster_stats(o: dict) -> list[NormalizedEvent]:

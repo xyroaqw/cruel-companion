@@ -4,6 +4,7 @@ update these samples."""
 
 from companion.protocol.events import (
     IdentityHintEvent,
+    MessageEvent,
     VitalsEvent,
     ZoneChangeEvent,
 )
@@ -33,6 +34,21 @@ MTLS_ESCHERION = {
 ADD_GOLD_EXP = {
     "t": "xt",
     "b": {"r": -1, "o": {"cmd": "addGoldExp", "intGold": 59, "typ": "m", "id": 3}},
+}
+
+# Real ct aura shape from the Escherion capture (isNew toggled for the test cases).
+CT_WITH_AURAS = {
+    "t": "xt",
+    "b": {"r": -1, "o": {
+        "cmd": "ct",
+        "a": [
+            {"cmd": "aura+", "tInf": "m:3", "cInf": "m:3",
+             "auras": [{"nam": "Empowered", "dur": 10, "t": "s", "isNew": True}]},
+            {"cmd": "aura+", "tInf": "p:24686", "cInf": "p:24686",
+             "auras": [{"nam": "Dricken +20% Damage Done", "dur": 20, "isNew": False}]},
+            {"cmd": "aura-", "tInf": "m:3", "aura": {"nam": "Empowered"}},
+        ],
+    }},
 }
 
 UOTLS_PLAYER = {
@@ -106,6 +122,31 @@ def test_mtls_then_ct_gives_hp_pct():
     actor = state.snapshot().actors["m:3"]
     assert actor.hp == 1500 and actor.hp_max == 6000
     assert actor.hp_pct == 25.0
+
+
+def test_new_auras_become_messages():
+    events = parse_frame(CT_WITH_AURAS)
+    messages = [e for e in events if isinstance(e, MessageEvent)]
+    texts = [m.text for m in messages]
+    assert "aura+ Empowered on m:3" in texts
+    assert "aura- Empowered on m:3" in texts
+    # Refresh ticks (isNew: false) are NOT surfaced -- they'd flood the buffer.
+    assert not any("Dricken" in t for t in texts)
+
+
+def test_aura_message_matches_rule():
+    """The point of the feature: a message_contains rule keys off the aura name."""
+    from companion.rules.engine import RulesEngine
+    from companion.rules.schema import Action, AlertLevel, Condition, Trigger
+    from companion.state.game_state import GameStateSnapshot
+
+    (msg,) = [e for e in parse_frame(CT_WITH_AURAS) if isinstance(e, MessageEvent)][:1]
+    snap = GameStateSnapshot(zone=None, actors={}, recent_messages=(msg.text,))
+    engine = RulesEngine([Trigger(
+        id="taunt", when=Condition(message_contains="aura+ Empowered"),
+        then=Action(alert="Taunt now!", level=AlertLevel.CRITICAL),
+    )])
+    assert len(engine.evaluate(snap)) == 1
 
 
 def test_uotls_player_max_hp():

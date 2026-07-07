@@ -40,11 +40,13 @@ class SettingsWindow:
         rules_path: Path,
         engine: RulesEngine,
         theme: Theme | None = None,
+        on_open_inspector=None,
     ):
         self._root = root
         self._rules_path = rules_path
         self._engine = engine
         self._theme = theme or Theme()
+        self._on_open_inspector = on_open_inspector
         self._triggers: list[Trigger] = []
 
         self._win = tk.Toplevel(root)
@@ -259,6 +261,11 @@ class SettingsWindow:
         ttk.Button(
             actions, text="Save Rule", style="Accent.TButton", command=self._save_rule
         ).pack(side="left")
+        if self._on_open_inspector is not None:
+            ttk.Button(
+                actions, text="Frame Inspector", style="Ghost.TButton",
+                command=self._on_open_inspector,
+            ).pack(side="left", padx=(8, 0))
         ttk.Button(
             actions, text="Quit Companion", style="Danger.TButton", command=self._quit
         ).pack(side="right")

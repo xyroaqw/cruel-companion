@@ -10,6 +10,12 @@ class FlowReassembler:
         self._buffers: dict[FlowKey, bytearray] = {}
 
     def feed(self, key: FlowKey, payload: bytes) -> list[str]:
+        """Complete frames that look like JSON objects -- what the parser consumes."""
+        return [t for t in self.feed_all(key, payload) if t.startswith("{") and t.endswith("}")]
+
+    def feed_all(self, key: FlowKey, payload: bytes) -> list[str]:
+        """Every complete NUL-delimited frame, JSON or not (e.g. AQW's %xt%...% percent
+        frames). The Frame Inspector uses this so nothing the client sent is hidden."""
         buf = self._buffers.setdefault(key, bytearray())
         buf.extend(payload)
 
@@ -24,7 +30,7 @@ class FlowReassembler:
         frames = []
         for part in complete:
             text = part.decode("utf-8", errors="replace").strip()
-            if text.startswith("{") and text.endswith("}"):
+            if text:
                 frames.append(text)
         return frames
 
