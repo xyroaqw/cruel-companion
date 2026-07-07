@@ -7,9 +7,10 @@ shape {"t": "xt", "b": {"o": {"cmd": <str>, ...}}}; we dispatch on that inner o.
 Verified frame types:
   ct          combat tick -- current vitals for monsters (o.m, keyed by MonMapID) and players
                         (o.p, keyed by player name). Values: intHP, intMP, intState. Also
-                        carries aura+/aura- entries in o.a, surfaced as MessageEvents
-                        ("aura+ <name> on <target>") so message_contains rules can key off
-                        the server-side aura behind a client-side mechanic banner.
+                        carries: o.anims[].msg (boss telegraph banner text, e.g. Nulgath's
+                        "Behold the power of the Abyss!") and o.a aura+/aura- entries -- both
+                        surfaced as MessageEvents so message_contains rules can match either
+                        the on-screen text directly or the aura behind it.
   mtls        monster full stats -- o.id + o.o.intHP is the monster's MAX HP (constant at
                         6000 for Escherion / 1000 for the Staff while ct shows HP draining).
   uotls       player full stats -- o.unm + o.o with intHP/intHPMax/intMP.
@@ -82,8 +83,29 @@ def _parse_combat_tick(o: dict) -> list[NormalizedEvent]:
     if actors:
         events.append(VitalsEvent(ts=0.0, actors=actors, kind="combat_tick"))
 
+    events.extend(_parse_anim_messages(o.get("anims")))
     events.extend(_parse_aura_entries(o.get("a")))
     return events
+
+
+def _parse_anim_messages(anims) -> list[MessageEvent]:
+    """Boss telegraph text rides along with animations: a ct frame's anims entries can carry
+    a "msg" (the exact on-screen banner, e.g. "Behold the power of the Abyss!"). This is the
+    server-sent version of the mechanic text, so message_contains rules match it directly.
+    """
+    messages: list[MessageEvent] = []
+    for anim in _as_list(anims):
+        if isinstance(anim, dict) and anim.get("msg"):
+            messages.append(
+                MessageEvent(
+                    ts=0.0,
+                    text=str(anim["msg"]),
+                    caster_id=str(anim["cInf"]) if anim.get("cInf") else None,
+                    target_id=str(anim["tInf"]) if anim.get("tInf") else None,
+                    raw_kind="anim_msg",
+                )
+            )
+    return messages
 
 
 def _parse_aura_entries(entries) -> list[MessageEvent]:

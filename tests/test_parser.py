@@ -51,6 +51,18 @@ CT_WITH_AURAS = {
     }},
 }
 
+# Real Nulgath telegraph frame: boss text rides in a ct anims[].msg field.
+CT_ANIM_MSG = {
+    "t": "xt",
+    "b": {"r": -1, "o": {
+        "cmd": "ct",
+        "m": {"1": {}},
+        "p": {"xyronius": {}},
+        "anims": [{"cInf": "m:2", "tInf": "p:25152", "animStr": "Charge",
+                   "strFrame": "Boss", "fx": "m", "msg": "Behold the power of the Abyss!"}],
+    }},
+}
+
 UOTLS_PLAYER = {
     "t": "xt",
     "b": {"r": -1, "o": {"cmd": "uotls", "unm": "xyronius",
@@ -122,6 +134,28 @@ def test_mtls_then_ct_gives_hp_pct():
     actor = state.snapshot().actors["m:3"]
     assert actor.hp == 1500 and actor.hp_max == 6000
     assert actor.hp_pct == 25.0
+
+
+def test_anim_msg_becomes_message():
+    (msg,) = [e for e in parse_frame(CT_ANIM_MSG) if isinstance(e, MessageEvent)]
+    assert msg.text == "Behold the power of the Abyss!"
+    assert msg.caster_id == "m:2"
+    assert msg.raw_kind == "anim_msg"
+
+
+def test_anim_msg_matches_user_rule():
+    """The reported bug: a message_contains rule keyed on boss telegraph text now fires."""
+    from companion.rules.engine import RulesEngine
+    from companion.rules.schema import Action, AlertLevel, Condition, Trigger
+    from companion.state.game_state import GameStateSnapshot
+
+    (msg,) = [e for e in parse_frame(CT_ANIM_MSG) if isinstance(e, MessageEvent)]
+    snap = GameStateSnapshot(zone=None, actors={}, recent_messages=(msg.text,))
+    engine = RulesEngine([Trigger(
+        id="taunt", when=Condition(message_contains="Behold the power of the Abyss!"),
+        then=Action(alert="LoO - Taunt Nulgath", level=AlertLevel.CRITICAL),
+    )])
+    assert len(engine.evaluate(snap)) == 1
 
 
 def test_new_auras_become_messages():
