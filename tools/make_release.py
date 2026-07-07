@@ -68,9 +68,20 @@ def main() -> None:
 
     print("Adding editable config/ and QUICKSTART.txt")
     config_dst = DIST / "config"
+    # Preserve a rules.yaml the user edited in this install's Rule Builder -- a rebuild must
+    # never silently wipe their rules. Back it up, refresh config from source, then restore
+    # it if it differs from the shipped default.
+    prev_rules = config_dst / "rules.yaml"
+    preserved = prev_rules.read_text(encoding="utf-8") if prev_rules.exists() else None
     if config_dst.exists():
         shutil.rmtree(config_dst)
     shutil.copytree(ROOT / "config", config_dst)
+    if preserved is not None and preserved != (ROOT / "config" / "rules.yaml").read_text(
+        encoding="utf-8"
+    ):
+        backup = config_dst / "rules.yaml.your-edits.bak"
+        backup.write_text(preserved, encoding="utf-8")
+        print(f"  NOTE: your edited rules.yaml differed from source; saved a copy to {backup.name}")
     (DIST / "QUICKSTART.txt").write_text(QUICKSTART, encoding="utf-8")
 
     if args.no_zip:

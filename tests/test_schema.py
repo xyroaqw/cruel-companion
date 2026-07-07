@@ -22,10 +22,10 @@ def write_rules(tmp_path, data) -> Path:
 
 
 def test_loads_real_config_rules_yaml():
+    # The shipped rules.yaml must always parse cleanly and include the verified Nulgath rule.
     triggers = load_rules(REPO_ROOT / "config" / "rules.yaml")
-    assert len(triggers) == 3
-    ids = {t.id for t in triggers}
-    assert ids == {"example_burn_phase", "example_telegraph_dodge", "example_entered_boss_room"}
+    nulgie = next(t for t in triggers if t.id == "Nulgie")
+    assert nulgie.when.message_contains == "Behold the power of the Abyss!"
 
 
 def test_missing_id_raises(tmp_path):

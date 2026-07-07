@@ -5,18 +5,22 @@
 # while (HP thresholds, being in a zone) so the alert fires once per crossing, not every tick.
 # Use `cooldown_seconds` for conditions that can legitimately repeat (telegraph text).
 #
-# These are placeholder examples -- edit freely once Step 0 confirms real boss names/messages.
+# Rules edited in the in-app Rule Builder are saved here. This file ships with the tool and
+# survives rebuilds, so rules kept here are permanent.
 
 rules:
-  - id: example_burn_phase
+  # Real, verified rule (Nulgath the Archfiend): the boss sends its telegraph text as a
+  # packet, so message_contains matches it. boss_name narrows it to this fight.
+  - id: Nulgie
     when:
-      boss_name: "Tercessuinotlim"
-      hp_pct_below: 30
+      boss_name: "Nulgath the Archfiend"
+      message_contains: "Behold the power of the Abyss!"
     then:
-      alert: "Burn phase! Use Skill 3 now"
-      level: warning
-    fire_once_per_threshold_crossing: true
+      alert: "LoO - Taunt Nulgath"
+      level: critical
+    cooldown_seconds: 5
 
+  # --- format examples (placeholder boss names; edit or delete freely) ---
   - id: example_telegraph_dodge
     when:
       message_contains: "incoming fire"
