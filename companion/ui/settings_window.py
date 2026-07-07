@@ -30,6 +30,8 @@ FIELD_DEFS = [
     ("visual_cue",       "Visual cue",            "pack:cue, e.g. ultra_darkon:red_glow"),
     ("alert",            "Alert text *",          "what the HUD shows"),
     ("cooldown_seconds", "Cooldown (s)",          "min seconds between repeats"),
+    ("initial_delay_seconds", "Timer: delay (s)", "timer mode: fire this long after fight start"),
+    ("repeat_every_seconds",  "Timer: repeat (s)", "timer mode: then repeat every N s (rotation)"),
 ]
 
 
@@ -312,6 +314,8 @@ class SettingsWindow:
         _set("visual_cue", t.when.visual_cue)
         _set("alert", t.then.alert)
         _set("cooldown_seconds", t.cooldown_seconds if t.cooldown_seconds else "")
+        _set("initial_delay_seconds", t.initial_delay_seconds if t.initial_delay_seconds else "")
+        _set("repeat_every_seconds", t.repeat_every_seconds if t.repeat_every_seconds else "")
         self._level_var.set(t.then.level.value)
         self._fire_once_var.set(t.fire_once_per_threshold_crossing)
 
@@ -365,14 +369,21 @@ class SettingsWindow:
                 )
                 return
 
-        cooldown_raw = self._entries["cooldown_seconds"].get().strip()
-        cooldown: float = 0.0
-        if cooldown_raw:
+        numbers: dict[str, float] = {}
+        for key, label in (
+            ("cooldown_seconds", "Cooldown"),
+            ("initial_delay_seconds", "Timer delay"),
+            ("repeat_every_seconds", "Timer repeat"),
+        ):
+            raw = self._entries[key].get().strip()
+            if not raw:
+                numbers[key] = 0.0
+                continue
             try:
-                cooldown = float(cooldown_raw)
+                numbers[key] = float(raw)
             except ValueError:
                 messagebox.showerror(
-                    "Validation error", "Cooldown must be a number (e.g. 5).", parent=self._win
+                    "Validation error", f"{label} must be a number (e.g. 5).", parent=self._win
                 )
                 return
 
@@ -392,8 +403,10 @@ class SettingsWindow:
                 visual_cue=self._entries["visual_cue"].get().strip() or None,
             ),
             then=Action(alert=alert_text, level=AlertLevel(self._level_var.get())),
-            cooldown_seconds=cooldown,
+            cooldown_seconds=numbers["cooldown_seconds"],
             fire_once_per_threshold_crossing=self._fire_once_var.get(),
+            initial_delay_seconds=numbers["initial_delay_seconds"],
+            repeat_every_seconds=numbers["repeat_every_seconds"],
         )
 
         # Upsert: replace if the id already exists, otherwise append

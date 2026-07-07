@@ -20,6 +20,18 @@ rules:
       level: critical
     cooldown_seconds: 5
 
+  # Legion Revenant taunt: rotational, not event-driven. Timer mode -- once the boss is
+  # present (fight start), remind after 5s, then every time the taunt scroll (skill 6) is
+  # back up. SET repeat_every_seconds to your actual skill-6 cooldown.
+  - id: LR_taunt
+    when:
+      boss_name: "Nulgath the Archfiend"
+    then:
+      alert: "LR - Taunt (skill 6)"
+      level: warning
+    initial_delay_seconds: 5
+    repeat_every_seconds: 12   # TODO: set to the real taunt-scroll cooldown
+
   # --- format examples (placeholder boss names; edit or delete freely) ---
   - id: example_telegraph_dodge
     when:

@@ -39,9 +39,22 @@ class Trigger:
     then: Action
     cooldown_seconds: float = 0.0
     fire_once_per_threshold_crossing: bool = False
+    # Timer mode (for rotational reminders like "taunt every N seconds"): once `when` first
+    # becomes true (e.g. boss present = fight start), fire after initial_delay_seconds, then
+    # repeat every repeat_every_seconds while `when` stays true. Leaving/ending the fight
+    # resets the timer so the next pull starts fresh. A trigger is a timer if either is > 0.
+    initial_delay_seconds: float = 0.0
+    repeat_every_seconds: float = 0.0
+
+    @property
+    def is_timer(self) -> bool:
+        return self.initial_delay_seconds > 0 or self.repeat_every_seconds > 0
 
 
-VALID_RULE_KEYS = {"id", "when", "then", "cooldown_seconds", "fire_once_per_threshold_crossing"}
+VALID_RULE_KEYS = {
+    "id", "when", "then", "cooldown_seconds", "fire_once_per_threshold_crossing",
+    "initial_delay_seconds", "repeat_every_seconds",
+}
 VALID_WHEN_KEYS = {"zone_equals", "boss_name", "hp_pct_below", "message_contains", "visual_cue"}
 VALID_THEN_KEYS = {"alert", "level"}
 
@@ -126,21 +139,22 @@ def parse_rule_dict(raw: dict, context: str) -> Trigger:
         valid = ", ".join(level.value for level in AlertLevel)
         raise ValueError(f"{where} has invalid 'then.level' (must be one of: {valid})") from exc
 
-    try:
-        cooldown = float(raw.get("cooldown_seconds", 0.0))
-    except (TypeError, ValueError):
-        raise ValueError(
-            f"{where}: 'cooldown_seconds' must be a number, got {raw.get('cooldown_seconds')!r}"
-        ) from None
+    def _num(field: str) -> float:
+        try:
+            return float(raw.get(field, 0.0))
+        except (TypeError, ValueError):
+            raise ValueError(f"{where}: '{field}' must be a number, got {raw.get(field)!r}") from None
 
     return Trigger(
         id=rule_id,
         when=condition,
         then=Action(alert=then_raw["alert"], level=level),
-        cooldown_seconds=cooldown,
+        cooldown_seconds=_num("cooldown_seconds"),
         fire_once_per_threshold_crossing=bool(
             raw.get("fire_once_per_threshold_crossing", False)
         ),
+        initial_delay_seconds=_num("initial_delay_seconds"),
+        repeat_every_seconds=_num("repeat_every_seconds"),
     )
 
 
@@ -189,6 +203,10 @@ def save_rules(triggers: list[Trigger], path: Path) -> None:
             rule["cooldown_seconds"] = t.cooldown_seconds
         if t.fire_once_per_threshold_crossing:
             rule["fire_once_per_threshold_crossing"] = True
+        if t.initial_delay_seconds:
+            rule["initial_delay_seconds"] = t.initial_delay_seconds
+        if t.repeat_every_seconds:
+            rule["repeat_every_seconds"] = t.repeat_every_seconds
         rules.append(rule)
 
     header = (

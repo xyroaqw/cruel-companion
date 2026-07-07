@@ -1,6 +1,9 @@
-"""Evaluates triggers against the current GameStateSnapshot, with two independent
-per-trigger anti-spam mechanisms: edge-detection (fire_once_per_threshold_crossing) and a
-plain time-based cooldown (cooldown_seconds).
+"""Evaluates triggers against the current GameStateSnapshot. Each trigger fires in one of
+three modes:
+  - timer (initial_delay_seconds / repeat_every_seconds): rotational reminders anchored to
+    when `when` first becomes true (fight start), e.g. "taunt 5s in, then every N seconds".
+  - edge (fire_once_per_threshold_crossing): fire once per rising edge of `when`.
+  - cooldown (default): fire whenever `when` holds, no more often than cooldown_seconds.
 """
 
 import time
@@ -28,17 +31,20 @@ class RulesEngine:
         self._triggers = self._base_triggers + self._pack_triggers
         self._last_fired_at: dict[str, float] = {}
         self._armed: dict[str, bool] = {t.id: True for t in self._triggers}
+        # Timer anchor: monotonic time `when` first became true, or None while it's false.
+        self._active_since: dict[str, float | None] = {t.id: None for t in self._triggers}
 
     def reload(self, triggers: list[Trigger]) -> None:
         """Swaps in an edited base rule set live (no restart needed); boss-pack triggers are
-        kept as-is. Cooldown/armed state is kept for rule ids that still exist; new ids start
-        fresh."""
+        kept as-is. Cooldown/armed/timer state is kept for rule ids that still exist; new ids
+        start fresh."""
         self._base_triggers = list(triggers)
         self._triggers = self._base_triggers + self._pack_triggers
         self._armed = {t.id: self._armed.get(t.id, True) for t in self._triggers}
         self._last_fired_at = {
             t.id: self._last_fired_at.get(t.id, float("-inf")) for t in self._triggers
         }
+        self._active_since = {t.id: self._active_since.get(t.id) for t in self._triggers}
 
     def evaluate(self, state: GameStateSnapshot) -> list[FiredAlert]:
         now = time.monotonic()
@@ -46,7 +52,11 @@ class RulesEngine:
         for trigger in self._triggers:
             matched = self._condition_holds(trigger.when, state)
 
-            if trigger.fire_once_per_threshold_crossing:
+            if trigger.is_timer:
+                if self._timer_should_fire(trigger, matched, now):
+                    fired.append(FiredAlert(trigger.id, trigger.then.alert, trigger.then.level, now))
+                    self._last_fired_at[trigger.id] = now
+            elif trigger.fire_once_per_threshold_crossing:
                 if matched and self._armed[trigger.id]:
                     fired.append(FiredAlert(trigger.id, trigger.then.alert, trigger.then.level, now))
                     self._armed[trigger.id] = False
@@ -58,6 +68,25 @@ class RulesEngine:
                     fired.append(FiredAlert(trigger.id, trigger.then.alert, trigger.then.level, now))
                     self._last_fired_at[trigger.id] = now
         return fired
+
+    def _timer_should_fire(self, trigger: Trigger, matched: bool, now: float) -> bool:
+        """Anchored at when `when` first became true: fire once at +initial_delay_seconds,
+        then every repeat_every_seconds. Losing the condition (leaving/ending the fight)
+        resets the anchor so the next pull restarts the timer."""
+        if not matched:
+            self._active_since[trigger.id] = None
+            return False
+
+        anchor = self._active_since.get(trigger.id)
+        if anchor is None:
+            anchor = now
+            self._active_since[trigger.id] = anchor
+
+        last = self._last_fired_at.get(trigger.id, float("-inf"))
+        fired_this_engagement = last >= anchor
+        if not fired_this_engagement:
+            return now >= anchor + trigger.initial_delay_seconds
+        return trigger.repeat_every_seconds > 0 and (now - last) >= trigger.repeat_every_seconds
 
     def _condition_holds(self, cond: Condition, state: GameStateSnapshot) -> bool:
         if cond.zone_equals is not None and state.zone != cond.zone_equals:
